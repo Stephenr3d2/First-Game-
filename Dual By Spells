@@ -1,0 +1,745 @@
+
+All projects
+Spell-Dueler Game
+Creating a game that wizards are dueling each other. Multiple layered and different options for playing
+
+
+
+
+
+
+First-person RPG with blurry opening scene
+Last message 4 hours ago
+Instructions
+Magical main class with multiple options with a 2nd subclass as example enchanter/paladin or Battlle-mage aka fighter
+
+Files
+1% of project capacity used
+
+SpellDuelComplete.jsx
+718 lines
+
+jsx
+
+
+
+SpellDuelComplete.jsx
+31.39 KB •718 lines
+Formatting may be inconsistent from source
+import React, { useState, useEffect, useRef } from 'react';
+import { Zap, Heart, Shield, Flame, Droplet, Wind, Sparkles, Users, Copy, Check, Swords, Snowflake, Brain, AlertCircle } from 'lucide-react';
+
+// ULTRA-SIMPLE STORAGE - Just use a plain JavaScript object
+const GAME_DATA = {};
+
+const simpleStorage = {
+  get: (key) => {
+    const value = GAME_DATA[key];
+    console.log('GET', key, 'â†’', value ? 'âœ…' : 'âŒ');
+    return Promise.resolve(value ? { value } : null);
+  },
+  set: (key, value) => {
+    console.log('SET', key);
+    GAME_DATA[key] = value;
+    return Promise.resolve(true);
+  },
+  delete: (key) => {
+    console.log('DELETE', key);
+    delete GAME_DATA[key];
+    return Promise.resolve(true);
+  }
+};
+
+export default function SpellDuelGame() {
+  const [gameState, setGameState] = useState('menu');
+  const [gameMode, setGameMode] = useState('');
+  const [roomCode, setRoomCode] = useState('');
+  const [playerName, setPlayerName] = useState('');
+  const [playerRole, setPlayerRole] = useState('');
+  const [myHP, setMyHP] = useState(300);
+  const [opponentHP, setOpponentHP] = useState(300);
+  const [myMana, setMyMana] = useState(50);
+  const [opponentMana, setOpponentMana] = useState(50);
+  const [opponentName, setOpponentName] = useState('Opponent');
+  const [casting, setCasting] = useState(false);
+  const [gameLog, setGameLog] = useState([]);
+  const [turnPhase, setTurnPhase] = useState('select');
+  const [roundNumber, setRoundNumber] = useState(1);
+  const [copied, setCopied] = useState(false);
+  const [hue, setHue] = useState(0);
+  const [lastSpell, setLastSpell] = useState(null);
+  const [opponentLastSpell, setOpponentLastSpell] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [selectedSpell, setSelectedSpell] = useState(null);
+  const pollInterval = useRef(null);
+  const resolvingRef = useRef(false);
+
+  const spells = [
+    { id: 'firebolt', name: 'Firebolt', damage: 18, mana: 12, icon: Flame, color: 'from-orange-500 to-red-600', desc: 'Basic', level: 1 },
+    { id: 'spark', name: 'Spark', damage: 15, mana: 10, icon: Zap, color: 'from-yellow-400 to-yellow-600', desc: 'Fast', level: 1 },
+    { id: 'iceshard', name: 'Ice Shard', damage: 22, mana: 11, icon: Droplet, color: 'from-cyan-400 to-blue-600', desc: 'Cold!', level: 1 },
+    { id: 'gust', name: 'Gust', damage: 14, mana: 10, icon: Wind, color: 'from-teal-400 to-green-500', desc: 'Quick', level: 1 },
+    { id: 'mend', name: 'Mend', damage: -15, mana: 18, icon: Heart, color: 'from-pink-400 to-rose-600', desc: '+HP', level: 1 },
+    { id: 'ward', name: 'Ward', damage: 0, mana: 12, icon: Shield, color: 'from-purple-400 to-indigo-600', desc: '40%', level: 1, block: 0.4 },
+    
+    { id: 'fireball', name: 'Fireball', damage: 28, mana: 22, icon: Flame, color: 'from-orange-600 to-red-700', desc: 'Strong', level: 2 },
+    { id: 'lightning', name: 'Lightning', damage: 25, mana: 20, icon: Zap, color: 'from-yellow-500 to-orange-600', desc: 'Burst', level: 2 },
+    { id: 'frostbolt', name: 'Frostbolt', damage: 35, mana: 23, icon: Snowflake, color: 'from-blue-400 to-cyan-600', desc: 'ICE!', level: 2 },
+    { id: 'windslash', name: 'Wind Slash', damage: 24, mana: 21, icon: Wind, color: 'from-teal-500 to-green-600', desc: 'Sharp', level: 2 },
+    { id: 'heal', name: 'Heal', damage: -30, mana: 28, icon: Heart, color: 'from-green-400 to-emerald-600', desc: 'Heal', level: 2 },
+    { id: 'barrier', name: 'Barrier', damage: 0, mana: 24, icon: Shield, color: 'from-blue-500 to-purple-600', desc: '60%', level: 2, block: 0.6 },
+    
+    { id: 'inferno', name: 'Inferno', damage: 40, mana: 38, icon: Flame, color: 'from-red-700 to-orange-900', desc: 'Huge', level: 3 },
+    { id: 'chainlight', name: 'Chain Light', damage: 35, mana: 36, icon: Zap, color: 'from-yellow-600 to-purple-700', desc: 'Chain', level: 3 },
+    { id: 'blizzard', name: 'Blizzard', damage: 48, mana: 40, icon: Snowflake, color: 'from-blue-500 to-cyan-800', desc: 'COLD', level: 3 },
+    { id: 'hurricane', name: 'Hurricane', damage: 38, mana: 40, icon: Wind, color: 'from-teal-700 to-indigo-800', desc: 'Storm', level: 3 },
+    { id: 'restore', name: 'Restore', damage: -50, mana: 48, icon: Heart, color: 'from-green-500 to-emerald-800', desc: 'Full', level: 3 },
+    { id: 'reflect', name: 'Reflect', damage: 0, mana: 45, icon: Shield, color: 'from-yellow-500 to-amber-700', desc: '80%+', level: 3, block: 0.5, reflect: 0.5 },
+    
+    { id: 'armageddon', name: 'Armageddon', damage: 70, mana: 60, icon: Flame, color: 'from-red-900 to-black', desc: 'NUKE', level: 4 },
+    { id: 'divine', name: 'Divine Grace', damage: -80, mana: 65, icon: Sparkles, color: 'from-yellow-300 to-pink-500', desc: 'Mega', level: 4 },
+  ];
+
+  useEffect(() => {
+    const i = setInterval(() => setHue(p => (p + 1) % 360), 50);
+    return () => clearInterval(i);
+  }, []);
+
+  useEffect(() => {
+    if (gameState === 'lobby' || (gameState === 'playing' && gameMode === 'pvp')) {
+      pollInterval.current = setInterval(() => pollGameState(), 800);
+    }
+    return () => { if (pollInterval.current) clearInterval(pollInterval.current); };
+  }, [gameState, roomCode, playerRole, turnPhase, gameMode]);
+
+  const showError = (msg) => {
+    setErrorMsg(msg);
+    setTimeout(() => setErrorMsg(''), 3000);
+  };
+
+  const generateRoomCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
+
+  const startAI = () => {
+    if (!playerName.trim()) { showError('Enter your name!'); return; }
+    setGameMode('pve');
+    setOpponentName('Dark Wizard AI');
+    setGameState('playing');
+    setGameLog(['âš”ï¸ Battle vs AI begins!']);
+  };
+
+  const createRoom = async () => {
+    console.log('ðŸ—ï¸ Creating room...');
+    if (!playerName.trim()) { 
+      showError('Enter your name!'); 
+      return; 
+    }
+    try {
+      const code = generateRoomCode();
+      console.log('ðŸŽ² Generated code:', code);
+      
+      const gd = { 
+        host: { name: playerName, hp: 300, mana: 50, action: null, ready: false, lastSpell: null }, 
+        guest: null, 
+        state: 'lobby', 
+        round: 1, 
+        log: [],
+        resolving: false 
+      };
+      
+      console.log('ðŸ’¾ Saving game data...');
+      await simpleStorage.set(`game_${code}`, JSON.stringify(gd));
+      
+      console.log('âœ… Room created successfully!');
+      setRoomCode(code);
+      setPlayerRole('host');
+      setGameMode('pvp');
+      setGameState('lobby');
+    } catch (e) {
+      console.error('âŒ Create room error:', e);
+      showError('Error: ' + e.message);
+    }
+  };
+
+  const joinRoom = async () => {
+    console.log('ðŸšª Joining room:', roomCode);
+    if (!playerName.trim() || !roomCode.trim()) { 
+      showError('Enter name and room code!'); 
+      return; 
+    }
+    try {
+      const r = await simpleStorage.get(`game_${roomCode.toUpperCase()}`);
+      if (!r) { 
+        showError('Room not found!'); 
+        return; 
+      }
+      
+      const gd = JSON.parse(r.value);
+      if (gd.guest) { 
+        showError('Room is full!'); 
+        return; 
+      }
+      
+      gd.guest = { name: playerName, hp: 300, mana: 50, action: null, ready: false, lastSpell: null };
+      await simpleStorage.set(`game_${roomCode.toUpperCase()}`, JSON.stringify(gd));
+      
+      console.log('âœ… Joined room!');
+      setPlayerRole('guest');
+      setGameMode('pvp');
+      setRoomCode(roomCode.toUpperCase());
+      setGameState('lobby');
+    } catch (e) { 
+      console.error('âŒ Join room error:', e);
+      showError('Error: ' + e.message); 
+    }
+  };
+
+  const pollGameState = async () => {
+    if (resolvingRef.current) return;
+    
+    try {
+      const r = await simpleStorage.get(`game_${roomCode}`);
+      if (!r) {
+        if (gameState !== 'menu') {
+          showError('Connection lost');
+          setTimeout(() => setGameState('menu'), 2000);
+        }
+        return;
+      }
+      const gd = JSON.parse(r.value);
+      const opp = playerRole === 'host' ? gd.guest : gd.host;
+      const me = playerRole === 'host' ? gd.host : gd.guest;
+      
+      if (opp) { 
+        setOpponentName(opp.name); 
+        setOpponentHP(opp.hp); 
+        setOpponentMana(opp.mana || 30); 
+        setOpponentLastSpell(opp.lastSpell || null); 
+      }
+      if (me) { 
+        setMyHP(me.hp); 
+        setMyMana(me.mana); 
+        setLastSpell(me.lastSpell || null); 
+      }
+      
+      if (gameState === 'lobby' && gd.state === 'playing') { 
+        setGameState('playing'); 
+        setGameLog(gd.log || []); 
+      }
+      
+      if (gameState === 'playing') {
+        setRoundNumber(gd.round);
+        setGameLog(gd.log || []);
+        
+        if (gd.host && gd.host.ready && gd.guest && gd.guest.ready && !gd.resolving && turnPhase === 'select') {
+          setTurnPhase('waiting');
+          if (playerRole === 'host') {
+            resolvingRef.current = true;
+            await resolveRound(gd);
+            resolvingRef.current = false;
+          }
+        }
+        
+        if (turnPhase !== 'select' && !gd.host.ready && !gd.guest.ready && !gd.resolving) {
+          setTurnPhase('select');
+          setCasting(false);
+          setSelectedSpell(null);
+        }
+        
+        if ((gd.host && gd.host.hp <= 0) || (gd.guest && gd.guest.hp <= 0)) {
+          setGameState('gameover');
+        }
+      }
+    } catch (e) { 
+      console.error('Poll error:', e); 
+    }
+  };
+
+  const startGame = async () => {
+    try {
+      const r = await simpleStorage.get(`game_${roomCode}`);
+      if (!r) { 
+        showError('Room data not found!'); 
+        return; 
+      }
+      const gd = JSON.parse(r.value);
+      if (!gd.guest) { 
+        showError('Waiting for opponent...'); 
+        return; 
+      }
+      gd.state = 'playing';
+      gd.log = ['âš”ï¸ Battle begins!'];
+      await simpleStorage.set(`game_${roomCode}`, JSON.stringify(gd));
+      setGameState('playing');
+    } catch (e) { 
+      console.error('Start game error:', e);
+      showError('Error starting game'); 
+    }
+  };
+
+  const aiSelectSpell = () => {
+    const avail = spells.filter(s => opponentMana >= s.mana && s.id !== opponentLastSpell);
+    if (avail.length === 0) {
+      const cheapest = spells.filter(s => opponentMana >= s.mana);
+      return cheapest.length > 0 ? cheapest[0] : null;
+    }
+    
+    if (opponentHP < 60 && opponentMana >= 48) { 
+      const restore = avail.find(s => s.id === 'restore'); 
+      if (restore) return restore; 
+    }
+    if (opponentHP < 80 && opponentMana >= 28) { 
+      const h = avail.find(s => s.damage < 0 && s.mana >= 28); 
+      if (h && Math.random() > 0.3) return h;
+    }
+    
+    if (myHP < 80) { 
+      const strong = avail.filter(s => s.damage >= 35);
+      if (strong.length > 0 && Math.random() > 0.2) return strong[Math.floor(Math.random() * strong.length)]; 
+    }
+    
+    if (opponentMana >= 40) {
+      const ultimates = avail.filter(s => s.level === 3 && s.damage > 0);
+      if (ultimates.length > 0 && Math.random() > 0.5) {
+        return ultimates[Math.floor(Math.random() * ultimates.length)];
+      }
+    }
+    
+    if (myHP > 150 && opponentHP < 120 && opponentMana >= 24) {
+      const shield = avail.find(s => s.block && s.mana >= 24);
+      if (shield && Math.random() > 0.7) return shield;
+    }
+    
+    const rand = Math.random();
+    if (rand < 0.75) {
+      const tier3 = avail.filter(s => s.damage > 0 && s.level === 3);
+      if (tier3.length > 0 && opponentMana >= 35) {
+        return tier3[Math.floor(Math.random() * tier3.length)];
+      }
+      const tier2 = avail.filter(s => s.damage > 0 && s.level === 2);
+      if (tier2.length > 0) {
+        return tier2[Math.floor(Math.random() * tier2.length)];
+      }
+      const atk = avail.filter(s => s.damage > 0);
+      return atk.length > 0 ? atk[Math.floor(Math.random() * atk.length)] : avail[0];
+    } else if (rand < 0.9) {
+      const def = avail.filter(s => s.block || s.reflect);
+      return def.length > 0 ? def[Math.floor(Math.random() * def.length)] : avail[0];
+    } else {
+      const sup = avail.filter(s => s.damage <= 0);
+      return sup.length > 0 ? sup[Math.floor(Math.random() * sup.length)] : avail[0];
+    }
+  };
+
+  const selectSpell = async (sp) => {
+    if (myMana < sp.mana) { showError('Not enough mana!'); return; }
+    if (lastSpell === sp.id) { showError('Cannot use same spell twice!'); return; }
+    if (casting) return;
+    
+    setSelectedSpell(sp);
+    setCasting(true);
+    
+    if (gameMode === 'pve') {
+      setTimeout(() => {
+        const aiSp = aiSelectSpell();
+        if (!aiSp) {
+          showError('AI has no valid moves!');
+          setCasting(false);
+          return;
+        }
+        resolvePvE(sp, aiSp);
+      }, 1000);
+    } else {
+      try {
+        const r = await simpleStorage.get(`game_${roomCode}`);
+        if (!r) { setCasting(false); showError('Connection error'); return; }
+        const gd = JSON.parse(r.value);
+        const md = playerRole === 'host' ? gd.host : gd.guest;
+        md.action = sp.id;
+        md.ready = true;
+        await simpleStorage.set(`game_${roomCode}`, JSON.stringify(gd));
+      } catch (e) { 
+        console.error(e); 
+        setCasting(false); 
+        showError('Error - try again'); 
+      }
+    }
+  };
+
+  const resolvePvE = (ps, as) => {
+    let log = [...gameLog];
+    let php = myHP, ohp = opponentHP;
+    let pm = myMana, om = opponentMana;
+
+    if (ps) {
+      pm -= ps.mana;
+      if (ps.damage < 0) { 
+        php = Math.min(300, php - ps.damage); 
+        log.push(`ðŸ’š You heal ${-ps.damage} HP!`); 
+      }
+      else if (ps.block || ps.reflect) { 
+        log.push(`ðŸ›¡ï¸ You cast ${ps.name}!`); 
+      }
+      else if (ps.damage > 0) {
+        let d = ps.damage;
+        if (as && as.block) d = Math.floor(d * (1 - as.block));
+        ohp -= d;
+        log.push(`ðŸ’¥ ${ps.name} hits for ${d} damage!`);
+      }
+    }
+
+    if (as) {
+      om -= as.mana;
+      if (as.damage < 0) { 
+        ohp = Math.min(300, ohp - as.damage); 
+        log.push(`ðŸ’š AI heals ${-as.damage} HP!`); 
+      }
+      else if (as.block || as.reflect) { 
+        log.push(`ðŸ›¡ï¸ AI casts ${as.name}!`); 
+      }
+      else if (as.damage > 0) {
+        let d = as.damage;
+        if (ps && ps.block) d = Math.floor(d * (1 - ps.block));
+        if (ps && ps.reflect) { 
+          const rf = Math.floor(d * ps.reflect); 
+          ohp -= rf; 
+          d = Math.floor(d * (1 - ps.reflect));
+          log.push(`âœ¨ Reflect ${rf} damage back!`); 
+        }
+        php -= d;
+        log.push(`ðŸ’¥ AI's ${as.name} hits for ${d} damage!`);
+      }
+    }
+
+    pm = Math.min(100, pm + 15);
+    om = Math.min(100, om + 15);
+    
+    setMyHP(php); 
+    setOpponentHP(ohp); 
+    setMyMana(pm); 
+    setOpponentMana(om);
+    setLastSpell(ps ? ps.id : null); 
+    setOpponentLastSpell(as ? as.id : null);
+    setGameLog(log.slice(-8)); 
+    setRoundNumber(roundNumber + 1);
+    setCasting(false);
+    setSelectedSpell(null);
+    
+    if (php <= 0 || ohp <= 0) setGameState('gameover');
+  };
+
+  const resolveRound = async (gd) => {
+    try {
+      gd.resolving = true;
+      await simpleStorage.set(`game_${roomCode}`, JSON.stringify(gd));
+      
+      const hs = spells.find(s => s.id === gd.host.action);
+      const gs = spells.find(s => s.id === gd.guest.action);
+      let log = [...gd.log];
+
+      if (hs) {
+        gd.host.mana -= hs.mana;
+        if (hs.damage < 0) { 
+          gd.host.hp = Math.min(300, gd.host.hp - hs.damage); 
+          log.push(`ðŸ’š ${gd.host.name} heals ${-hs.damage} HP!`); 
+        }
+        else if (hs.block || hs.reflect) { 
+          log.push(`ðŸ›¡ï¸ ${gd.host.name} casts ${hs.name}!`); 
+        }
+        else if (hs.damage > 0) {
+          let d = hs.damage;
+          if (gs && gs.block) d = Math.floor(d * (1 - gs.block));
+          if (gs && gs.reflect) { 
+            const rf = Math.floor(d * gs.reflect); 
+            gd.host.hp -= rf; 
+            d = Math.floor(d * (1 - gs.reflect));
+            log.push(`âœ¨ ${gd.guest.name} reflects ${rf} damage!`); 
+          }
+          gd.guest.hp -= d;
+          log.push(`ðŸ’¥ ${gd.host.name}'s ${hs.name} deals ${d} damage!`);
+        }
+        gd.host.lastSpell = gd.host.action;
+      }
+
+      if (gs) {
+        gd.guest.mana -= gs.mana;
+        if (gs.damage < 0) { 
+          gd.guest.hp = Math.min(300, gd.guest.hp - gs.damage); 
+          log.push(`ðŸ’š ${gd.guest.name} heals ${-gs.damage} HP!`); 
+        }
+        else if (gs.block || gs.reflect) { 
+          log.push(`ðŸ›¡ï¸ ${gd.guest.name} casts ${gs.name}!`); 
+        }
+        else if (gs.damage > 0) {
+          let d = gs.damage;
+          if (hs && hs.block) d = Math.floor(d * (1 - hs.block));
+          if (hs && hs.reflect) { 
+            const rf = Math.floor(d * hs.reflect); 
+            gd.guest.hp -= rf; 
+            d = Math.floor(d * (1 - hs.reflect));
+            log.push(`âœ¨ ${gd.host.name} reflects ${rf} damage!`); 
+          }
+          gd.host.hp -= d;
+          log.push(`ðŸ’¥ ${gd.guest.name}'s ${gs.name} deals ${d} damage!`);
+        }
+        gd.guest.lastSpell = gd.guest.action;
+      }
+
+      gd.host.mana = Math.min(100, gd.host.mana + 15);
+      gd.guest.mana = Math.min(100, gd.guest.mana + 15);
+      
+      gd.host.ready = false;
+      gd.guest.ready = false;
+      gd.host.action = null;
+      gd.guest.action = null;
+      gd.round += 1;
+      gd.log = log.slice(-8);
+      gd.resolving = false;
+      
+      await simpleStorage.set(`game_${roomCode}`, JSON.stringify(gd));
+    } catch (e) { 
+      console.error('Resolution error:', e); 
+      try {
+        const r = await simpleStorage.get(`game_${roomCode}`);
+        if (r) {
+          const gd = JSON.parse(r.value);
+          gd.resolving = false;
+          await simpleStorage.set(`game_${roomCode}`, JSON.stringify(gd));
+        }
+      } catch {}
+    }
+  };
+
+  const copyRoomCode = () => { 
+    navigator.clipboard.writeText(roomCode); 
+    setCopied(true); 
+    setTimeout(() => setCopied(false), 2000); 
+  };
+  
+  const resetGame = () => {
+    setGameState('menu');
+    setGameMode('');
+    setRoomCode('');
+    setMyHP(250);
+    setOpponentHP(250);
+    setMyMana(30);
+    setOpponentMana(30);
+    setRoundNumber(1);
+    setLastSpell(null);
+    setOpponentLastSpell(null);
+    setGameLog([]);
+    setCasting(false);
+    setSelectedSpell(null);
+    setTurnPhase('select');
+    resolvingRef.current = false;
+  };
+
+  const rs = { background: `linear-gradient(135deg, hsl(${hue}, 100%, 50%), hsl(${(hue + 60) % 360}, 100%, 50%), hsl(${(hue + 120) % 360}, 100%, 50%))` };
+  const rb = { borderColor: `hsl(${hue}, 100%, 60%)`, boxShadow: `0 0 30px hsl(${hue}, 100%, 50%)` };
+
+  const ErrorBanner = () => errorMsg ? (
+    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-600 text-white px-6 py-3 rounded-xl font-bold shadow-2xl flex items-center gap-2 animate-bounce">
+      <AlertCircle className="w-5 h-5" />
+      {errorMsg}
+    </div>
+  ) : null;
+
+  if (gameState === 'menu') {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-4 overflow-hidden relative">
+        <ErrorBanner />
+        <div className="absolute inset-0 opacity-30" style={rs}></div>
+        <div className="relative bg-black/80 backdrop-blur-xl rounded-3xl p-8 max-w-md w-full border-4 shadow-2xl" style={rb}>
+          <div className="text-center mb-8">
+            <Sparkles className="w-20 h-20 mx-auto mb-4 animate-pulse" style={{color: `hsl(${hue}, 100%, 60%)`}} />
+            <h1 className="text-6xl font-bold mb-2" style={{ background: `linear-gradient(90deg, hsl(${hue}, 100%, 60%), hsl(${(hue + 120) % 360}, 100%, 60%))`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SPELL DUEL</h1>
+            <p className="text-xl font-bold" style={{color: `hsl(${hue}, 100%, 70%)`}}>âš¡ 20 POWERFUL SPELLS âš¡</p>
+            <p className="text-sm font-bold text-cyan-400 mt-1">â„ï¸ ICE = EXTRA DAMAGE</p>
+            <p className="text-sm font-bold text-red-400">ðŸ”¥ EPIC: 300 HP + 50 MANA ðŸ”¥</p>
+          </div>
+          <input type="text" placeholder="Enter your name" value={playerName} onChange={e => setPlayerName(e.target.value)}
+            className="w-full p-4 mb-4 rounded-xl bg-black/50 border-2 text-white placeholder-gray-400 focus:outline-none font-bold text-lg"
+            style={{borderColor: `hsl(${hue}, 80%, 50%)`}} />
+          <button onClick={startAI} className="w-full p-4 mb-3 rounded-xl text-white font-bold text-lg shadow-lg transform transition hover:scale-105 border-2"
+            style={{background: `linear-gradient(90deg, hsl(${(hue + 240) % 360}, 100%, 40%), hsl(${(hue + 280) % 360}, 100%, 50%))`}}>
+            <Brain className="inline w-6 h-6 mr-2" /> VS COMPUTER
+          </button>
+          <button onClick={createRoom} className="w-full p-4 mb-3 rounded-xl text-white font-bold text-lg shadow-lg transform transition hover:scale-105 border-2" style={rs}>ðŸŽ® CREATE ROOM</button>
+          <div className="flex gap-2">
+            <input type="text" placeholder="ROOM CODE" value={roomCode} onChange={e => setRoomCode(e.target.value.toUpperCase())}
+              className="flex-1 p-4 rounded-xl bg-black/50 border-2 text-white placeholder-gray-400 focus:outline-none font-bold"
+              style={{borderColor: `hsl(${(hue + 180) % 360}, 80%, 50%)`}} />
+            <button onClick={joinRoom} className="px-6 rounded-xl text-white font-bold shadow-lg transition hover:scale-105" style={{background: `hsl(${(hue + 180) % 360}, 100%, 50%)`}}>JOIN</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'lobby') {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden">
+        <ErrorBanner />
+        <div className="absolute inset-0 opacity-20" style={rs}></div>
+        <div className="relative bg-black/80 backdrop-blur-xl rounded-3xl p-8 max-w-md w-full border-4 shadow-2xl" style={rb}>
+          <h2 className="text-4xl font-bold text-white mb-6 text-center">â³ WAITING</h2>
+          <div className="rounded-xl p-4 mb-4 flex items-center justify-between border-2" style={{ background: `linear-gradient(90deg, hsl(${hue}, 100%, 20%), hsl(${(hue + 60) % 360}, 100%, 20%))`, borderColor: `hsl(${hue}, 100%, 50%)` }}>
+            <span className="text-white font-bold">CODE:</span>
+            <div className="flex items-center gap-2">
+              <span className="text-3xl font-mono font-bold text-white">{roomCode}</span>
+              <button onClick={copyRoomCode} className="p-2 hover:bg-white/10 rounded-lg">
+                {copied ? <Check className="w-6 h-6 text-green-400" /> : <Copy className="w-6 h-6" style={{color: `hsl(${hue}, 100%, 70%)`}} />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-3 mb-6">
+            <div className="rounded-xl p-4 border-4 border-green-400 bg-green-500/20">
+              <Users className="w-6 h-6 text-green-400 inline mr-2" />
+              <span className="text-white font-bold text-lg">âœ“ {playerName}</span>
+            </div>
+            <div className={`rounded-xl p-4 border-4 ${opponentName !== 'Opponent' ? 'border-green-400 bg-green-500/20' : 'border-gray-600 bg-gray-500/20'}`}>
+              <Users className={`w-6 h-6 inline mr-2 ${opponentName !== 'Opponent' ? 'text-green-400' : 'text-gray-400'}`} />
+              <span className="text-white font-bold text-lg">{opponentName !== 'Opponent' ? `âœ“ ${opponentName}` : 'â³ Waiting...'}</span>
+            </div>
+          </div>
+          {playerRole === 'host' && (
+            <button onClick={startGame} disabled={opponentName === 'Opponent'}
+              className="w-full p-4 rounded-xl text-white font-bold text-xl shadow-lg transform transition hover:scale-105 disabled:opacity-50 border-2"
+              style={opponentName !== 'Opponent' ? {background: 'linear-gradient(90deg, hsl(120, 100%, 40%), hsl(150, 100%, 40%))', borderColor: 'rgb(34, 197, 94)'} : {background: 'rgb(75, 85, 99)'}}>
+              âš”ï¸ START BATTLE âš”ï¸
+            </button>
+          )}
+          {playerRole === 'guest' && <div className="text-center text-white font-bold text-xl">â³ Waiting for host...</div>}
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'gameover') {
+    const won = myHP > opponentHP;
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-30" style={rs}></div>
+        <div className="relative bg-black/90 backdrop-blur-xl rounded-3xl p-8 max-w-md w-full border-4 shadow-2xl text-center" style={rb}>
+          <h2 className={`text-6xl font-bold mb-6 ${won ? 'text-yellow-400' : 'text-red-500'}`}>{won ? 'ðŸ† VICTORY ðŸ†' : 'ðŸ’€ DEFEAT ðŸ’€'}</h2>
+          <div className="mb-6 space-y-3">
+            <div className="text-white text-2xl font-bold p-4 rounded-xl" style={{background: `hsl(${hue}, 100%, 20%)`}}>
+              {playerName}: {myHP} HP
+              <div className="text-sm mt-1 opacity-75">Round {roundNumber}</div>
+            </div>
+            <div className="text-white text-2xl font-bold p-4 rounded-xl" style={{background: `hsl(${(hue + 180) % 360}, 100%, 20%)`}}>
+              {opponentName}: {opponentHP} HP
+            </div>
+          </div>
+          <button onClick={resetGame}
+            className="w-full p-4 rounded-xl text-white font-bold text-xl shadow-lg transform transition hover:scale-105 border-2" style={rs}>ðŸ”„ PLAY AGAIN</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-black p-2 md:p-4 relative overflow-hidden">
+      <ErrorBanner />
+      <div className="absolute inset-0 opacity-20" style={rs}></div>
+      <div className="max-w-5xl mx-auto relative">
+        <div className="bg-black/80 backdrop-blur-xl rounded-2xl p-3 mb-3 border-4 shadow-2xl" style={rb}>
+          <div className="text-center mb-2">
+            <Swords className="w-8 h-8 mx-auto mb-1 animate-pulse" style={{color: `hsl(${hue}, 100%, 60%)`}} />
+            <div className="text-white font-bold text-2xl">âš”ï¸ ROUND {roundNumber} âš”ï¸</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="text-center p-2 rounded-xl" style={{background: `linear-gradient(135deg, hsl(${hue}, 100%, 15%), hsl(${(hue + 60) % 360}, 100%, 15%))`}}>
+              <p className="text-white font-bold text-sm mb-1">{playerName}</p>
+              <div className="bg-black/50 rounded-full h-5 overflow-hidden border-2 border-red-500 my-1">
+                <div className="bg-gradient-to-r from-red-600 to-red-400 h-full transition-all" style={{width: `${(myHP / 300) * 100}%`}}></div>
+              </div>
+              <p className="text-white font-bold text-lg">{myHP} HP</p>
+              <div className="bg-black/50 rounded-full h-3 overflow-hidden border mt-1" style={{borderColor: `hsl(${hue}, 100%, 50%)`}}>
+                <div className="h-full transition-all" style={{width: `${myMana}%`, background: `hsl(${hue}, 100%, 50%)`}}></div>
+              </div>
+              <p className="text-xs mt-1" style={{color: `hsl(${hue}, 100%, 70%)`}}>{myMana} / 100 MANA</p>
+              {lastSpell && (
+                <p className="text-xs mt-1 text-yellow-300">Last: {spells.find(s => s.id === lastSpell)?.name}</p>
+              )}
+            </div>
+            <div className="text-center p-2 rounded-xl" style={{background: `linear-gradient(135deg, hsl(${(hue + 180) % 360}, 100%, 15%), hsl(${(hue + 240) % 360}, 100%, 15%))`}}>
+              <p className="text-white font-bold text-sm mb-1">{opponentName}</p>
+              <div className="bg-black/50 rounded-full h-5 overflow-hidden border-2 border-red-500 my-1">
+                <div className="bg-gradient-to-r from-red-600 to-red-400 h-full transition-all" style={{width: `${(opponentHP / 300) * 100}%`}}></div>
+              </div>
+              <p className="text-white font-bold text-lg">{opponentHP} HP</p>
+              {gameMode === 'pve' && (
+                <>
+                  <div className="bg-black/50 rounded-full h-3 overflow-hidden border mt-1" style={{borderColor: `hsl(${(hue + 180) % 360}, 100%, 50%)`}}>
+                    <div className="h-full transition-all" style={{width: `${opponentMana}%`, background: `hsl(${(hue + 180) % 360}, 100%, 50%)`}}></div>
+                  </div>
+                  <p className="text-xs mt-1" style={{color: `hsl(${(hue + 180) % 360}, 100%, 70%)`}}>{opponentMana} MANA</p>
+                </>
+              )}
+              {opponentLastSpell && (
+                <p className="text-xs mt-1 text-yellow-300">Last: {spells.find(s => s.id === opponentLastSpell)?.name}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-black/80 backdrop-blur-xl rounded-2xl p-3 mb-3 border-4 h-32 overflow-y-auto shadow-xl" style={{borderColor: `hsl(${hue}, 70%, 40%)`}}>
+          <div className="space-y-1">
+            {gameLog.length === 0 ? (
+              <p className="text-gray-400 text-center text-sm italic">Battle log will appear here...</p>
+            ) : (
+              gameLog.map((l, i) => (
+                <p key={i} className="text-white font-bold text-sm px-2 py-1 rounded" 
+                   style={{background: `linear-gradient(90deg, hsl(${hue}, 100%, 20%), transparent)`}}>
+                  {l}
+                </p>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="bg-black/80 backdrop-blur-xl rounded-2xl p-3 border-4 shadow-2xl" style={rb}>
+          <h3 className="text-white font-bold text-xl mb-3 text-center">
+            {casting ? 'â³ WAITING FOR OPPONENT...' : 'âœ¨ SELECT YOUR SPELL âœ¨'}
+          </h3>
+          
+          {selectedSpell && casting && (
+            <div className="mb-3 p-3 rounded-xl border-2 border-yellow-400 bg-yellow-400/10 text-center">
+              <p className="text-yellow-300 font-bold">You selected: {selectedSpell.name}</p>
+            </div>
+          )}
+
+          {!casting && (
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+              {spells.map(s => {
+                const I = s.icon;
+                const canCast = myMana >= s.mana;
+                const isRepeated = lastSpell === s.id;
+                const isDisabled = !canCast || isRepeated;
+                
+                return (
+                  <button key={s.id} onClick={() => selectSpell(s)} disabled={isDisabled}
+                    className={`p-2 rounded-xl border-2 transition transform relative ${
+                      !isDisabled ? `bg-gradient-to-br ${s.color} hover:scale-105 shadow-xl` : 'bg-gray-800 border-gray-600 opacity-50 cursor-not-allowed'
+                    }`}>
+                    {isRepeated && <div className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold px-1.5 rounded-full border-2 border-white">âœ—</div>}
+                    {s.level > 1 && <div className="absolute -top-1 -left-1 bg-yellow-500 text-black text-xs font-bold px-1.5 rounded-full border-2 border-white">{s.level}</div>}
+                    <I className="w-6 h-6 mx-auto mb-1 text-white" />
+                    <p className="text-white font-bold text-xs leading-tight">{s.name}</p>
+                    <p className="text-white/90 text-xs">{s.desc}</p>
+                    <p className="text-white font-bold text-xs mt-0.5">âš¡{s.mana}</p>
+                    {!canCast && !isRepeated && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-xl">
+                        <span className="text-red-400 text-xs font-bold">NO MANA</span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
